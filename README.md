@@ -1,6 +1,6 @@
 # Balls
 
-This is catch the ball game
+This is catch the ball game. `mydraw.py` is a python linker for C library.
 
 # Build
 
