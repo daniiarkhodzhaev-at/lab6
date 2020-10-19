@@ -4,6 +4,7 @@
 #include <goocanvas.h>
 
 /* global variables */
+char *NAME = "";
 static gint FPS = 100;
 static gint WIDTH = 640;
 static gint HEIGHT = 600;
@@ -12,16 +13,12 @@ static char *COLORS[] = {"#ff0000", "#0000ff", "#ffff00",
                         "#00ff00", "#ff00ff", "#00ffff"};
 
 
-struct timeout_args {
-    GooCanvasItem   *root;
-    GooCanvasItem   *last;
-};
-
-struct circle_list {
-    struct circle_list *next;
-    GooCanvasItem *circ;
+struct object_list {
+    struct object_list *next;
+    GooCanvasItem *obj;
     gint x;
     gint y;
+    gint r;
     gint vx;
     gint vy;
     gint score;
@@ -33,7 +30,7 @@ struct circle_list {
 static GtkWidget *window, *canvas;
 static GooCanvasItem *root;
 static int score = 0;
-static struct circle_list *circles = NULL;
+static struct object_list *objects = NULL;
 
 
 static gboolean on_button_press (GooCanvasItem  *view,
@@ -45,161 +42,199 @@ static gboolean on_delete_event      (GtkWidget *window,
                                       GdkEvent  *event,
                                       gpointer   unused_data);
 
-static gboolean on_timeout           (gpointer data);
-
 static gboolean on_next_frame        (gpointer unused_data);
 
 static gint     randint              (gint a,
                                       gint b);
 
+/**
+ * This function sets up params.
+ * @param name (char *) name of app
+ * @param width (gint) width of the window
+ * @param height (gint) height of the window
+ *
+ * @return (gint) Exit code
+ */
+int setup(char *name, gint width, gint height) {
+    WIDTH = width;
+    HEIGHT = height;
+    NAME = malloc(strlen(name) + 1);
+    memcpy(NAME, name, strlen(name) + 1);
+    return 0;
+}
 
-int init(char *name) {
+/**
+ * This is init function. It initialize GTK+. Uses values set by setup function.
+ * @return (gint) Exit code
+ */
+int init() {
     int argc = 1;
-    char **argv = &name;
+    char **argv = &NAME;
 
     /* Initialize GTK+. */
     gtk_set_locale ();
     gtk_init (&argc, &argv);
 
+    /* Create GTK+ window and bind closing callback. */
     window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
     gtk_window_set_default_size (GTK_WINDOW (window), WIDTH, HEIGHT);
     gtk_widget_show (window);
     g_signal_connect (window, "delete_event", (GtkSignalFunc) on_delete_event,
                       NULL);
 
+    /* Create new canvas, set it size and get root element for future usage.*/
     canvas = goo_canvas_new ();
     goo_canvas_set_bounds (GOO_CANVAS (canvas), 0, 0, WIDTH, HEIGHT);
     gtk_widget_show (canvas);
     gtk_container_add (GTK_CONTAINER (window), canvas);
-
     root = goo_canvas_get_root_item (GOO_CANVAS (canvas));
 
     return 0;
 }
 
-int add_circle(gint x, gint y, gint r, gint vx, gint vy, char *color, gint score) {
-    struct circle_list *new_circ = malloc(sizeof(struct circle_list));
-    if (!new_circ) {
+/**
+ * This function adds circle with given params to canvas and sets onclick callback.
+ * @param x (gint) x coord
+ * @param y (gint) y coord
+ * @param r (gint) radius
+ * @param vx (gint) x velocity
+ * @param vy (gint) y velocity
+ * @param color (char *) color in string format
+ * @param score (gint) score increment, used once
+ *
+ * @return (gint) Exit code
+ */
+int add_circ(gint x, gint y, gint r, gint vx, gint vy, char *color, gint score) {
+    struct object_list *new_obj = malloc(sizeof(struct object_list));
+    if (!new_obj) {
         g_print("OOM: dropping\n");
         abort();
     }
-    new_circ->next = circles;
-    new_circ->score = score;
-    new_circ->skip = 0;
-    new_circ->x = x;
-    new_circ->y = y;
-    new_circ->vx = vx;
-    new_circ->vy = vy;
-    new_circ->circ = goo_canvas_ellipse_new(root, x, y, r, r, "line-width", 0.0, "fill-color", color, NULL);
-    g_signal_connect (new_circ->circ, "button_press_event",
-                      (GtkSignalFunc) on_button_press, new_circ);
-    circles = new_circ;
+    new_obj->next = objects;
+    new_obj->score = score;
+    new_obj->skip = 0;
+    new_obj->x = x;
+    new_obj->y = y;
+    new_obj->r = r;
+    new_obj->vx = vx;
+    new_obj->vy = vy;
+    new_obj->obj = goo_canvas_ellipse_new(root, x, y, r, r, "line-width", 0.0, "fill-color", color, NULL);
+    g_signal_connect (new_obj->obj, "button_press_event",
+                      (GtkSignalFunc) on_button_press, new_obj);
+    objects = new_obj;
     return 0;
 }
 
+/**
+ * This function adds rectangle with given params to canvas and sets onclick callback.
+ * @param x (gint) x coord
+ * @param y (gint) y coord
+ * @param r (gint) radius
+ * @param vx (gint) x velocity
+ * @param vy (gint) y velocity
+ * @param color (char *) color in string format
+ * @param score (gint) score increment, used once
+ *
+ * @return (gint) Exit code
+ */
 int add_rect(gint x, gint y, gint r, gint vx, gint vy, char *color, gint score) {
-    struct circle_list *new_circ = malloc(sizeof(struct circle_list));
-    if (!new_circ) {
+    struct object_list *new_obj = malloc(sizeof(struct object_list));
+    if (!new_obj) {
         g_print("OOM: dropping\n");
         abort();
     }
-    new_circ->next = circles;
-    new_circ->score = score;
-    new_circ->skip = 0;
-    new_circ->x = x;
-    new_circ->y = y;
-    new_circ->vx = vx;
-    new_circ->vy = vy;
-    new_circ->circ = goo_canvas_rect_new(root, x, y, r, r, "line-width", 0.0, "fill-color", color, NULL);
-    g_signal_connect (new_circ->circ, "button_press_event",
-                      (GtkSignalFunc) on_button_press, new_circ);
-    circles = new_circ;
+    new_obj->next = objects;
+    new_obj->score = score;
+    new_obj->skip = 0;
+    new_obj->x = x;
+    new_obj->y = y;
+    new_obj->r = r;
+    new_obj->vx = vx;
+    new_obj->vy = vy;
+    new_obj->obj = goo_canvas_rect_new(root, x, y, r, r, "line-width", 0.0, "fill-color", color, NULL);
+    g_signal_connect (new_obj->obj, "button_press_event",
+                      (GtkSignalFunc) on_button_press, new_obj);
+    objects = new_obj;
     return 0;
 }
 
-int pop_circle() {
-    goo_canvas_item_remove(circles->circ);
-    gpointer tmp = circles;
-    circles = circles->next;
+/**
+ * This function removes the last added element from canvas.
+ * @return (gint) Exit code
+ */
+int pop_object() {
+    goo_canvas_item_remove(objects->obj);
+    gpointer tmp = objects;
+    objects = objects->next;
     free(tmp);
     return 0;
 }
 
+/**
+ * This is mainllop function. It sets next frame callback
+ * and passes control to GTK+ main event loop.
+ * @return (gint) Exit code
+ */
 int mainloop() {
-    g_timeout_add (FPS, &on_next_frame, NULL);
+    /* Set next frame callback */
+    g_timeout_add (1000.0 / FPS, &on_next_frame, NULL);
+
+    /* Pass control to the GTK+ main event loop. */
     gtk_main();
     return 0;
 }
 
+/**
+ * This is test function to demonstrate functionality.
+ * @return (gint) Exit code
+ */
 int
 main (int argc, char *argv[])
 {
-    GooCanvasItem *circ_item;
+    init("Test");
 
-    /* Initialize GTK+. */
-    gtk_set_locale ();
-    gtk_init (&argc, &argv);
+    for (gint i = 0; i < 10; ++i) {
+        gint x, y, r, vx, vy;
+        r = randint(10, 100);
+        x = randint(r, WIDTH - r);
+        y = randint(r, HEIGHT - r);
+        vx = randint(-10, 10);
+        vy = randint(-10, 10);
+        char *color = COLORS[randint(0, 6)];
 
-    /* Create the window and widgets. */
-    window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
-    gtk_window_set_default_size (GTK_WINDOW (window), WIDTH, HEIGHT);
-    gtk_widget_show (window);
-    g_signal_connect (window, "delete_event", (GtkSignalFunc) on_delete_event,
-                      NULL);
+        add_circ(x, y, r, vx, vy, color, 10);
+    }
 
-    /*scrolled_win = gtk_scrolled_window_new (NULL, NULL);
-    gtk_scrolled_window_set_shadow_type (GTK_SCROLLED_WINDOW (scrolled_win),
-                                         GTK_SHADOW_IN);
-    gtk_widget_show (scrolled_win);
-    gtk_container_add (GTK_CONTAINER (window), scrolled_win);*/
+    for (gint i = 0; i < 10; ++i) {
+        gint x, y, r, vx, vy;
+        r = randint(10, 100);
+        x = randint(r, WIDTH - r);
+        y = randint(r, HEIGHT - r);
+        vx = randint(-10, 10);
+        vy = randint(-10, 10);
+        char *color = COLORS[randint(0, 6)];
 
-    canvas = goo_canvas_new ();
-    /*gtk_widget_set_size_request (canvas, 600, 450);*/
-    goo_canvas_set_bounds (GOO_CANVAS (canvas), 0, 0, WIDTH, HEIGHT);
-    gtk_widget_show (canvas);
-    gtk_container_add (GTK_CONTAINER (window), canvas);
+        add_rect(x, y, r, vx, vy, color, -1);
+    }
 
-    root = goo_canvas_get_root_item (GOO_CANVAS (canvas));
-
-    /* Add a few simple items. */
-    circ_item = goo_canvas_ellipse_new (root, 100, 100, 100, 100,
-                                        "line-width", 0.0,
-                                        "fill-color", "red",
-                                        NULL);
-
-    struct timeout_args *pArgs = malloc(sizeof(struct timeout_args));
-    pArgs->root = root;
-    pArgs->last = circ_item;
-
-    /* Connect a signal handler for the rectangle item. */
-    g_signal_connect (circ_item, "button_press_event",
-                      (GtkSignalFunc) on_button_press, NULL);
-
-    add_circle(100, 100, 50, 1, 10, "red", 10);
-
-    /* g_timeout_add (FPS, &on_timeout, pArgs); */
-    g_timeout_add (FPS, &on_next_frame, NULL);
-
-    /* Pass control to the GTK+ main event loop. */
-    gtk_main ();
+    mainloop();
 
     return 0;
 }
 
 
-/* This handles button presses in item views. We simply output a message to
-     the console. */
+/* This handles button presses in item views. */
 static gboolean
 on_button_press (GooCanvasItem    *item,
                       GooCanvasItem    *target,
                       GdkEventButton   *event,
                       gpointer          data)
 {
-    struct circle_list *cur = (struct circle_list *)data;
+    struct object_list *cur = (struct object_list *)data;
     score += cur->score;
     cur->score = 0;
     cur->skip = 1;
-    goo_canvas_item_remove(cur->circ);
+    goo_canvas_item_remove(cur->obj);
     return TRUE;
 }
 
@@ -215,30 +250,10 @@ on_delete_event (GtkWidget *window,
     exit (0);
 }
 
-/* This is handler for frames. All magic happens here */
-static gboolean
-on_timeout (gpointer data) {
-    struct timeout_args *pArgs = (struct timeout_args *)data;
-
-    goo_canvas_item_remove (pArgs->last);
-    gint x, y, r;
-    x = randint(0, WIDTH);
-    y = randint(0, HEIGHT);
-    r = randint(10, 100);
-    pArgs->last = goo_canvas_ellipse_new (pArgs->root, x, y, r, r,
-                                          "line-width", 0.0,
-                                          "fill-color", COLORS[randint(0, 6)],
-                                          NULL);
-    g_signal_connect (pArgs->last, "button_press_event",
-                      (GtkSignalFunc) on_button_press, NULL);
-
-    return TRUE;
-}
-
 /* This is handler for next frame. All magic happens here. It uses global static vars. */
 static gboolean
 on_next_frame (gpointer unused_data) {
-    struct circle_list *cur = circles;
+    struct object_list *cur = objects;
     while (cur) {
         if (cur->skip) {
             cur = cur->next;
@@ -246,11 +261,11 @@ on_next_frame (gpointer unused_data) {
         }
         cur->x += cur->vx;
         cur->y += cur->vy;
-        goo_canvas_item_translate(cur->circ, (gdouble)cur->vx, (gdouble)cur->vy);
-        if (cur->x < 0 || cur->x > WIDTH) {
+        goo_canvas_item_translate(cur->obj, (gdouble)cur->vx, (gdouble)cur->vy);
+        if (cur->x < cur->r || cur->x > WIDTH - cur->r) {
             cur->vx *= -1;
         }
-        if (cur->y < 0 || cur->y > HEIGHT) {
+        if (cur->y < cur->r || cur->y > HEIGHT - cur->r) {
             cur->vy *= -1;
         }
         cur = cur->next;
