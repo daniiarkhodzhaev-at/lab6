@@ -100,7 +100,7 @@ int update_leaderboard () {
     while ((nread = getline (pLine, pN, fd_l)) != -1) {
         sscanf (*pLine, "%s %i", pName, pScore);
         if (*pScore < score && (!added)) {
-            fprintf (fd_t, "%s %i\n", username, uscore);
+            fprintf (fd_t, "%s %i\n", username, score);
             added = TRUE;
         }
         fprintf (fd_t, "%s %i\n", pName, *pScore);
