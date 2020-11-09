@@ -12,7 +12,7 @@ main: main.o
 	gcc -o main main.o `pkg-config --libs goocanvas`
 
 main.o: main.c
-	gcc -c -o main.o main.c `pkg-config --cflags goocanvas` -g
+	gcc -g -c -o main.o main.c `pkg-config --cflags goocanvas` -g
 
 clean:
 	rm -f main

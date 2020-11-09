@@ -47,6 +47,7 @@ def main() -> int:
     for _ in range(randint(10, 10)):
         add_rand_rect()
     mainloop()
+    update_leaderboard()
     return 0
 
 if (__name__ == "__main__"):

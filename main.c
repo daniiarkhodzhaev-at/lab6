@@ -8,6 +8,8 @@ char *NAME = "";
 static gint FPS = 100;
 static gint WIDTH = 640;
 static gint HEIGHT = 600;
+static const char *LEADERBOARD_FN = "leaderboard";
+static const char *TMP_FN = ".tmp.leaderboard";
 
 static char *COLORS[] = {"#ff0000", "#0000ff", "#ffff00",
                         "#00ff00", "#ff00ff", "#00ffff"};
@@ -26,10 +28,10 @@ struct object_list {
 };
 
 /* containers */
-static GtkWidget *window, *canvas;
+static GtkWidget *window, *canvas, *entry_text;
 static GooCanvasItem *root;
 static int score = 0;
-static char *username = "";
+static char *username;
 static struct object_list *objects = NULL;
 
 
@@ -72,6 +74,58 @@ int setup (char *name, gint width, gint height) {
 }
 
 /**
+ * This function updates leaderboard. Adds name and score to file.
+ *
+ * @return (gint) Exit code
+ */
+int update_leaderboard () {
+    FILE *fd_l = fopen (LEADERBOARD_FN, "r");
+    FILE *fd_t = fopen (TMP_FN, "w");
+    if (!fd_l) {
+        g_print ("Failed to open stream\n");
+        return -1;
+    }
+    if (!fd_t) {
+        g_print ("Failed to open stream\n");
+        return -1;
+    }
+    gboolean added = FALSE;
+    gulong *pN = malloc (sizeof (gulong));
+    gint *pScore = malloc (sizeof (gint));
+    *pN = 0;
+    ssize_t nread;
+    gchar **pLine = malloc (sizeof (char *));
+    *pLine = NULL;
+    gchar *pName = malloc (256 * sizeof (char *));
+    while ((nread = getline (pLine, pN, fd_l)) != -1) {
+        sscanf (*pLine, "%s %i", pName, pScore);
+        if (*pScore < score && (!added)) {
+            fprintf (fd_t, "%s %i\n", username, uscore);
+            added = TRUE;
+        }
+        fprintf (fd_t, "%s %i\n", pName, *pScore);
+        free (*pLine);
+        *pLine = NULL;
+        *pN = 0;
+    }
+    if (!added) {
+        fprintf (fd_t, "%s %i\n", username, score);
+    }
+    fclose (fd_l);
+    fclose (fd_t);
+    
+    free (pN);
+    free (pScore);
+
+    pid_t pid;
+    pid = fork ();
+    if (pid == 0) {
+        execl ("/usr/bin/mv", "mv", TMP_FN, LEADERBOARD_FN, NULL);
+    }
+    return 0;
+}
+
+/**
  * This is init function. It initialize GTK+. Uses values set by setup function.
  * Also it queries username via pop-up window.
  * @return (gint) Exit code
@@ -81,7 +135,7 @@ int init () {
     char **argv = &NAME;
 
     GtkWidget *hbox, *c_hbox, *vbox, *halign, *stopBtn, *showLeaderbordBtn,
-              *pop_window, *entry_text_label, *entry_text, *confirm_button,
+              *pop_window, *entry_text_label, *confirm_button,
               *pop_vbox, *pop_hbox_entry, *pop_hbox_confirm,
               *pop_vbox_spacer_top, *pop_vbox_spacer_mid, *pop_vbox_spacer_bot,
               *pop_hbox_entry_spacer_lft, *pop_hbox_entry_spacer_rt,
@@ -313,6 +367,8 @@ main (int argc, char *argv[])
 
     g_print ("Your score is %i.\n", score);
 
+    update_leaderboard ();
+
     return 0;
 }
 
@@ -399,6 +455,12 @@ on_username_entered (GtkWidget *confirm_button,
                      GdkEvent *event,
                      gpointer  pop_window)
 {
+    int _len = gtk_entry_get_text_length (GTK_ENTRY (entry_text));
+    printf ("%i\n", _len);
+    username = realloc (username, (_len + 1) * sizeof (char));
+    memcpy (username, gtk_entry_get_text (GTK_ENTRY (entry_text)), (_len));
+    *(username + _len) = 0;
+    printf ("%s\n", username);
     gtk_widget_destroy (GTK_WIDGET (pop_window));
     gtk_widget_show_all (window);
 

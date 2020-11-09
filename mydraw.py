@@ -15,6 +15,13 @@ def setup(name, width, height):
     """
     return __mylib.setup(name.encode(), width, height);
 
+def update_leaderboard():
+    """
+    This function updates leaderboard. Adds name and score to file.
+    @return (gint) Exit code
+    """
+    return __mylib.update_leaderboard()
+
 def init():
     """
     This function initializes lib.
