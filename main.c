@@ -70,6 +70,11 @@ int setup (char *name, gint width, gint height) {
     HEIGHT = height;
     NAME = malloc(strlen(name) + 1);
     memcpy (NAME, name, strlen(name) + 1);
+    pid_t pid;
+    pid = fork ();
+    if (pid == 0) {
+        execl ("/usr/bin/touch", "touch", LEADERBOARD_FN, NULL);
+    }
     return 0;
 }
 
@@ -418,7 +423,6 @@ on_configure_event (GtkWidget *window,
     WIDTH = 1000;
     HEIGHT = 1000;
 
-    g_print ("%i x %i\n", WIDTH, HEIGHT);
     goo_canvas_set_bounds (GOO_CANVAS (canvas), 0, 0, WIDTH, HEIGHT);
     free (canvas_alloc);
 
@@ -456,11 +460,9 @@ on_username_entered (GtkWidget *confirm_button,
                      gpointer  pop_window)
 {
     int _len = gtk_entry_get_text_length (GTK_ENTRY (entry_text));
-    printf ("%i\n", _len);
     username = realloc (username, (_len + 1) * sizeof (char));
     memcpy (username, gtk_entry_get_text (GTK_ENTRY (entry_text)), (_len));
     *(username + _len) = 0;
-    printf ("%s\n", username);
     gtk_widget_destroy (GTK_WIDGET (pop_window));
     gtk_widget_show_all (window);
 
